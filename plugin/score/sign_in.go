@@ -2,33 +2,39 @@
 package score
 
 import (
-	"fmt"
+	"bytes"
+	"image"
+	"image/color"
 	"math"
 	"math/rand"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/Coloured-glaze/gg"
+	"github.com/disintegration/imaging"
+
+	"github.com/FloatTech/ZeroBot-Plugin/kanban"
+
+	"github.com/FloatTech/AnimeAPI/bilibili"
+	"github.com/FloatTech/AnimeAPI/wallet"
 	"github.com/FloatTech/floatbox/file"
-	"github.com/FloatTech/floatbox/img/writer"
+	"github.com/FloatTech/floatbox/process"
+	"github.com/FloatTech/floatbox/web"
+	"github.com/FloatTech/gg"
+	"github.com/FloatTech/imgfactory"
 	ctrl "github.com/FloatTech/zbpctrl"
 	"github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
-	"github.com/FloatTech/zbputils/img"
 	"github.com/FloatTech/zbputils/img/text"
 	"github.com/golang/freetype"
-	log "github.com/sirupsen/logrus"
 	"github.com/wcharczuk/go-chart/v2"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
-
-	// 货币系统
-	"github.com/FloatTech/AnimeAPI/wallet"
 )
 
 const (
-	backgroundURL = "https://img.moehu.org/pic.php?id=pc"
+	backgroundURL = "https://iw233.cn/api.php?sort=pc"
+	referer       = "https://weibo.com/"
 	signinMax     = 1
 	// SCOREMAX 分数上限定为1200
 	SCOREMAX = 1200
@@ -54,11 +60,6 @@ func init() {
 		}
 		sdb = initialize(engine.DataFolder() + "score.db")
 	}()
-	zero.OnFullMatch("查看我的钱包").SetBlock(true).Handle(func(ctx *zero.Ctx) {
-		uid := ctx.Event.UserID
-		money := wallet.GetWalletOf(uid)
-		ctx.SendChain(message.At(uid), message.Text("你的钱包当前有", money, "ATRI币"))
-	})
 	engine.OnFullMatch("签到").Limit(ctxext.LimitByUser).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			uid := ctx.Event.UserID
@@ -113,7 +114,7 @@ func init() {
 			}
 			score := wallet.GetWalletOf(uid)
 			// 绘图
-			err = initPic(picFile)
+			getAvatar, err := initPic(picFile, uid)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return
@@ -124,62 +125,113 @@ func init() {
 				return
 			}
 			// 避免图片过大，最大 1280*720
-			back = img.Limit(back, 1280, 720)
-			canvas := gg.NewContext(back.Bounds().Size().X, int(float64(back.Bounds().Size().Y)*1.7))
-			canvas.SetRGB(1, 1, 1)
-			canvas.Clear()
+			back = imgfactory.Limit(back, 1280, 720)
+			imgDX := back.Bounds().Dx()
+			imgDY := back.Bounds().Dy()
+			canvas := gg.NewContext(imgDX, imgDY)
+			// draw Aero Style
+			aeroStyle := gg.NewContext(imgDX-202, imgDY-202)
+			aeroStyle.DrawImage(imaging.Blur(back, 2.5), -100, -100)
+			// aero draw image.
+			aeroStyle.DrawRoundedRectangle(0, 0, float64(imgDX-200), float64(imgDY-200), 16)
+			// SideLine
+			aeroStyle.SetLineWidth(3)
+			aeroStyle.SetRGBA255(255, 255, 255, 100)
+			aeroStyle.StrokePreserve()
+			aeroStyle.SetRGBA255(255, 255, 255, 140)
+			// fill
+			aeroStyle.Fill()
+			// draw background
 			canvas.DrawImage(back, 0, 0)
-			monthWord := now.Format("01/02")
-			hourWord := getHourWord(now)
-			_, err = file.GetLazyData(text.BoldFontFile, control.Md5File, true)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			if err = canvas.LoadFontFace(text.BoldFontFile, float64(back.Bounds().Size().X)*0.1); err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			canvas.SetRGB(0, 0, 0)
-			canvas.DrawString(hourWord, float64(back.Bounds().Size().X)*0.1, float64(back.Bounds().Size().Y)*1.2)
-			canvas.DrawString(monthWord, float64(back.Bounds().Size().X)*0.6, float64(back.Bounds().Size().Y)*1.2)
-			nickName := ctx.CardOrNickName(uid)
-			_, err = file.GetLazyData(text.FontFile, control.Md5File, true)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			if err = canvas.LoadFontFace(text.FontFile, float64(back.Bounds().Size().X)*0.04); err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			canvas.DrawString(nickName+fmt.Sprintf(" ATRI币+%d", add), float64(back.Bounds().Size().X)*0.1, float64(back.Bounds().Size().Y)*1.3)
-			canvas.DrawString("当前ATRI币:"+strconv.FormatInt(int64(score), 10), float64(back.Bounds().Size().X)*0.1, float64(back.Bounds().Size().Y)*1.4)
-			canvas.DrawString("LEVEL:"+strconv.FormatInt(int64(rank), 10), float64(back.Bounds().Size().X)*0.1, float64(back.Bounds().Size().Y)*1.5)
-			canvas.DrawRectangle(float64(back.Bounds().Size().X)*0.1, float64(back.Bounds().Size().Y)*1.55, float64(back.Bounds().Size().X)*0.6, float64(back.Bounds().Size().Y)*0.1)
-			canvas.SetRGB255(150, 150, 150)
+			// Aero style combine
+			canvas.DrawImage(aeroStyle.Image(), 100, 100)
 			canvas.Fill()
+			hourWord := getHourWord(now)
+			avatar, _, err := image.Decode(bytes.NewReader(getAvatar))
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			avatarf := imgfactory.Size(avatar, 200, 200)
+			canvas.DrawImage(avatarf.Circle(0).Image(), 120, 120)
+			// draw info(name,coin,etc)
+			canvas.SetRGB255(0, 0, 0)
+			data, err := file.GetLazyData(text.BoldFontFile, control.Md5File, true)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			if err = canvas.ParseFontFace(data, 50); err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			// draw head
+			nickName := ctx.CardOrNickName(uid)
+			canvas.DrawStringWrapped(nickName, 350, 180, 0.5, 0.5, 0.5, 0.5, gg.AlignLeft)
+			canvas.Fill()
+			// main draw
+			data, err = file.GetLazyData(text.FontFile, control.Md5File, true)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			if err = canvas.ParseFontFace(data, 30); err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			canvas.DrawStringAnchored(hourWord, 350, 280, 0, 0)
+			canvas.DrawStringAnchored("ATRI币 + "+strconv.Itoa(add), 350, 350, 0, 0)
+			canvas.DrawStringAnchored("当前ATRI币："+strconv.Itoa(score), 350, 400, 0, 0)
+			canvas.DrawStringAnchored("LEVEL: "+strconv.Itoa(getrank(level)), 350, 450, 0, 0)
+			// draw Info(Time,etc.)
+			getTime := time.Now().Format("2006-01-02 15:04:05")
+			getTimeLengthWidth, getTimeLengthHight := canvas.MeasureString(getTime)
+			canvas.DrawStringAnchored(getTime, float64(imgDX)-100-20-getTimeLengthWidth/2, float64(imgDY)-100-getTimeLengthHight, 0.5, 0.5) // time
 			var nextrankScore int
 			if rank < 10 {
 				nextrankScore = rankArray[rank+1]
 			} else {
 				nextrankScore = SCOREMAX
 			}
-			canvas.SetRGB255(0, 0, 0)
-			canvas.DrawRectangle(float64(back.Bounds().Size().X)*0.1, float64(back.Bounds().Size().Y)*1.55, float64(back.Bounds().Size().X)*0.6*float64(level)/float64(nextrankScore), float64(back.Bounds().Size().Y)*0.1)
-			canvas.SetRGB255(102, 102, 102)
+			nextLevelStyle := strconv.Itoa(level) + "/" + strconv.Itoa(nextrankScore)
+			getLevelLength, _ := canvas.MeasureString(nextLevelStyle)
+			canvas.DrawStringAnchored(nextLevelStyle, 100+getLevelLength, float64(imgDY)-100-getTimeLengthHight, 0.5, 0.5) // time
 			canvas.Fill()
-			canvas.DrawString(fmt.Sprintf("%d/%d", level, nextrankScore), float64(back.Bounds().Size().X)*0.75, float64(back.Bounds().Size().Y)*1.62)
-
-			f, err := os.Create(drawedFile)
-			if err != nil {
-				log.Errorln("[score]", err)
-				data, cl := writer.ToBytes(canvas.Image())
-				ctx.SendChain(message.ImageBytes(data))
-				cl()
+			canvas.SetRGB255(255, 255, 255)
+			if err = canvas.ParseFontFace(data, 20); err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
 				return
 			}
-			_, err = writer.WriteTo(canvas.Image(), f)
+			canvas.DrawStringAnchored("Created By Zerobot-Plugin "+kanban.Version, float64(imgDX)/2, float64(imgDY)-20, 0.5, 0.5) // zbp
+			canvas.SetRGB255(0, 0, 0)
+			canvas.DrawStringAnchored("Created By Zerobot-Plugin "+kanban.Version, float64(imgDX)/2-3, float64(imgDY)-19, 0.5, 0.5) // zbp
+			canvas.SetRGB255(255, 255, 255)
+			// Gradient
+			grad := gg.NewLinearGradient(20, 320, 400, 20)
+			grad.AddColorStop(0, color.RGBA{G: 255, A: 255})
+			grad.AddColorStop(1, color.RGBA{B: 255, A: 255})
+			grad.AddColorStop(0.5, color.RGBA{R: 255, A: 255})
+			canvas.SetStrokeStyle(grad)
+			canvas.SetLineWidth(4)
+			// level array with rectangle work.
+			gradLineLength := float64(imgDX-120) - 120
+			renderLine := (float64(level) / float64(nextrankScore)) * gradLineLength
+			canvas.MoveTo(120, float64(imgDY)-102)
+			canvas.LineTo(120+renderLine, float64(imgDY)-102)
+			canvas.ClosePath()
+			canvas.Stroke()
+			// done.
+			f, err := os.Create(drawedFile)
+			if err != nil {
+				data, err := imgfactory.ToBytes(canvas.Image())
+				if err != nil {
+					ctx.SendChain(message.Text("ERROR: ", err))
+					return
+				}
+				ctx.SendChain(message.ImageBytes(data))
+				return
+			}
+			_, err = imgfactory.WriteTo(canvas.Image(), f)
 			_ = f.Close()
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
@@ -187,6 +239,7 @@ func init() {
 			}
 			ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
 		})
+
 	engine.OnPrefix("获得签到背景", zero.OnlyGroup).Limit(ctxext.LimitByGroup).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			param := ctx.State["args"].(string)
@@ -275,88 +328,6 @@ func init() {
 			}
 			ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
 		})
-	engine.OnFullMatch("查看钱包排名", zero.OnlyGroup).Limit(ctxext.LimitByGroup).SetBlock(true).
-		Handle(func(ctx *zero.Ctx) {
-			gid := strconv.FormatInt(ctx.Event.GroupID, 10)
-			today := time.Now().Format("20060102")
-			drawedFile := cachePath + gid + today + "walletRank.png"
-			if file.IsExist(drawedFile) {
-				ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
-				return
-			}
-			// 无缓存获取群员列表
-			temp := ctx.GetThisGroupMemberListNoCache().Array()
-			var usergroup []int64
-			for _, info := range temp {
-				usergroup = append(usergroup, info.Get("user_id").Int())
-			}
-			// 获取钱包信息
-			st, err := wallet.GetGroupWalletOf(usergroup, true)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			if len(st) == 0 {
-				ctx.SendChain(message.Text("ERROR: 当前没人获取过ATRI币"))
-				return
-			} else if len(st) > 10 {
-				st = st[:10]
-			}
-			_, err = file.GetLazyData(text.FontFile, control.Md5File, true)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			b, err := os.ReadFile(text.FontFile)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			font, err := freetype.ParseFont(b)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			f, err := os.Create(drawedFile)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			var bars []chart.Value
-			for _, v := range st {
-				if v.Money != 0 {
-					bars = append(bars, chart.Value{
-						Label: ctx.CardOrNickName(v.UID),
-						Value: float64(v.Money),
-					})
-				}
-			}
-			err = chart.BarChart{
-				Font:  font,
-				Title: "ATRI币排名(1天只刷新1次)",
-				Background: chart.Style{
-					Padding: chart.Box{
-						Top: 40,
-					},
-				},
-				YAxis: chart.YAxis{
-					Range: &chart.ContinuousRange{
-						Min: 0,
-						Max: math.Ceil(bars[0].Value/10) * 10,
-					},
-				},
-				Height:   500,
-				BarWidth: 50,
-				Bars:     bars,
-			}.Render(chart.PNG, f)
-			_ = f.Close()
-			if err != nil {
-				_ = os.Remove(drawedFile)
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
-		})
 }
 
 func getHourWord(t time.Time) string {
@@ -388,9 +359,22 @@ func getrank(count int) int {
 	return -1
 }
 
-func initPic(picFile string) error {
+func initPic(picFile string, uid int64) (avatar []byte, err error) {
 	if file.IsExist(picFile) {
-		return nil
+		return nil, nil
 	}
-	return file.DownloadTo(backgroundURL, picFile, true)
+	defer process.SleepAbout1sTo2s()
+	url, err := bilibili.GetRealURL(backgroundURL)
+	if err != nil {
+		return nil, err
+	}
+	data, err := web.RequestDataWith(web.NewDefaultClient(), url, "", referer, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	avatar, err = web.GetData("http://q4.qlogo.cn/g?b=qq&nk=" + strconv.FormatInt(uid, 10) + "&s=640")
+	if err != nil {
+		return nil, err
+	}
+	return avatar, os.WriteFile(picFile, data, 0644)
 }
