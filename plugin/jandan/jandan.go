@@ -23,7 +23,7 @@ const (
 )
 
 func init() {
-	engine := control.Register("jandan", &ctrl.Options[*zero.Ctx]{
+	engine := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "煎蛋网无聊图",
 		Help:             "- 来份[屌|弔|吊]图\n- 更新[屌|弔|吊]图\n",
@@ -33,7 +33,7 @@ func init() {
 	getdb := fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
 		db.DBPath = engine.DataFolder() + "pics.db"
 		_, _ = engine.GetLazyData("pics.db", false)
-		err := db.Open(time.Hour * 24)
+		err := db.Open(time.Hour)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return false

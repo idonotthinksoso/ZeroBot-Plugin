@@ -17,10 +17,10 @@ import (
 	"github.com/FloatTech/zbputils/img/text"
 )
 
-const bed = "https://gitcode.net/u011570312/senso-ji-omikuji/-/raw/main/"
+const bed = "https://gitea.seku.su/fumiama/senso-ji-omikuji/raw/branch/main/"
 
 func init() { // 插件主体
-	engine := control.Register("omikuji", &ctrl.Options[*zero.Ctx]{
+	engine := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "浅草寺求签",
 		Help:             "- 求签 | 占卜\n- 解签",
@@ -54,7 +54,7 @@ func init() { // 插件主体
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false
 			}
-			err = db.Open(time.Hour * 24)
+			err = db.Open(time.Hour)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false

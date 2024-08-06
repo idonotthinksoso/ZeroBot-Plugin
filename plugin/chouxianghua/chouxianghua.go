@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	en := control.Register("chouxianghua", &ctrl.Options[*zero.Ctx]{
+	en := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "翻译为抽象话",
 		Help:             "- 抽象翻译xxx",
@@ -26,7 +26,7 @@ func init() {
 			db.DBPath = en.DataFolder() + "cxh.db"
 			// os.RemoveAll(dbpath)
 			_, _ = en.GetLazyData("cxh.db", true)
-			err := db.Open(time.Hour * 24)
+			err := db.Open(time.Hour)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false

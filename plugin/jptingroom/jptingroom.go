@@ -15,7 +15,7 @@ import (
 )
 
 func init() { // 插件主体
-	engine := control.Register("jptingroom", &ctrl.Options[*zero.Ctx]{
+	engine := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "日语听力学习材料",
 		Help: "- 随机日语听力\n" +
@@ -32,7 +32,7 @@ func init() { // 插件主体
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return false
 		}
-		err = db.Open(time.Hour * 24)
+		err = db.Open(time.Hour)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return false

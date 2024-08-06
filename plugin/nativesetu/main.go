@@ -23,7 +23,7 @@ var (
 )
 
 func init() {
-	engine := control.Register("nativesetu", &ctrl.Options[*zero.Ctx]{
+	engine := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "本地涩图",
 		Help: "- 本地[xxx]\n" +
@@ -43,7 +43,7 @@ func init() {
 			logrus.Infoln("[nsetu] set setu dir to", setupath)
 		}
 	}
-	err := ns.db.Open(time.Hour * 24)
+	err := ns.db.Open(time.Hour)
 	if err != nil {
 		panic(err)
 	}

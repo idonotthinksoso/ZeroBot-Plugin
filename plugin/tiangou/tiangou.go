@@ -22,7 +22,7 @@ type tiangou struct {
 var db = &sql.Sqlite{}
 
 func init() {
-	en := control.Register("tiangou", &ctrl.Options[*zero.Ctx]{
+	en := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "舔狗日记",
 		Help:             "- 舔狗日记",
@@ -37,7 +37,7 @@ func init() {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false
 			}
-			err = db.Open(time.Hour * 24)
+			err = db.Open(time.Hour)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false

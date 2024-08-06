@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	engine := control.Register("nihongo", &ctrl.Options[*zero.Ctx]{
+	engine := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "日语学习",
 		Help: "- 日语语法[xxx](使用tag随机)\n" +
@@ -30,7 +30,7 @@ func init() {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return false
 		}
-		err = db.Open(time.Hour * 24)
+		err = db.Open(time.Hour)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return false

@@ -52,7 +52,7 @@ var pool = &imgpool{
 }
 
 func init() { // 插件主体
-	engine := control.Register("setutime", &ctrl.Options[*zero.Ctx]{
+	engine := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "涩图",
 		Help: "- 来份[涩图/二次元/风景/车万]\n" +
@@ -66,7 +66,7 @@ func init() { // 插件主体
 		// 如果数据库不存在则下载
 		pool.db.DBPath = engine.DataFolder() + "SetuTime.db"
 		_, _ = engine.GetLazyData("SetuTime.db", false)
-		err := pool.db.Open(time.Hour * 24)
+		err := pool.db.Open(time.Hour)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return false
@@ -236,10 +236,7 @@ func (p *imgpool) add(ctx *zero.Ctx, imgtype string, id int64) error {
 		return err
 	}
 	// 添加插画到对应的数据库table
-	if err := p.db.Insert(imgtype, illust); err != nil {
-		return err
-	}
-	return nil
+	return p.db.Insert(imgtype, illust)
 }
 
 func (p *imgpool) remove(imgtype string, id int64) error {

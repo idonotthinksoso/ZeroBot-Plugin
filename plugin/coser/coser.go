@@ -23,7 +23,7 @@ import (
 
 var (
 	ua       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
-	coserURL = "http://ovooa.com/API/cosplay/api.php"
+	coserURL = "https://picture.yinux.workers.dev"
 )
 
 func init() {
@@ -44,13 +44,16 @@ func init() {
 				return "", err
 			}
 			arr := gjson.Get(helper.BytesToString(data), "data.data").Array()
+			if len(arr) == 0 {
+				return "", errors.New("data is empty")
+			}
 			pic := arr[rand.Intn(len(arr))]
 			return pic.String(), nil
 		}, web.GetData, time.Minute)
 	if err != nil {
 		panic(err)
 	}
-	control.Register("coser", &ctrl.Options[*zero.Ctx]{
+	control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "三次元coser",
 		Help:             "- coser",

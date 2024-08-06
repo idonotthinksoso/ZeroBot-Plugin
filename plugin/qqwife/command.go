@@ -56,7 +56,7 @@ var (
 	民政局 = &婚姻登记{
 		db: &sql.Sqlite{},
 	}
-	engine = control.Register("qqwife", &ctrl.Options[*zero.Ctx]{
+	engine = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "一群一天一夫一妻制群老婆",
 		Help: "- 娶群友\n- 群老婆列表\n- [允许|禁止]自由恋爱\n- [允许|禁止]牛头人\n- 设置CD为xx小时    →(默认12小时)\n- 重置花名册\n- 重置所有花名册(用于清除所有群数据及其设置)\n- 查好感度[对方Q号|@对方QQ]\n- 好感度列表\n- 好感度数据整理 (当好感度列表出现重复名字时使用)\n" +
@@ -82,7 +82,7 @@ var (
 	))
 	getdb = fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
 		民政局.db.DBPath = engine.DataFolder() + "结婚登记表.db"
-		err := 民政局.db.Open(time.Hour * 24)
+		err := 民政局.db.Open(time.Hour)
 		if err == nil {
 			// 创建群配置表
 			err = 民政局.db.Create("updateinfo", &updateinfo{})
@@ -128,7 +128,7 @@ func init() {
 				ctx.SendChain(
 					message.At(uid),
 					message.Text("\n今天你在", userInfo.Updatetime, "娶了群友"),
-					message.Image("http://q4.qlogo.cn/g?b=qq&nk="+strconv.FormatInt(userInfo.Target, 10)+"&s=640").Add("cache", 0),
+					message.Image("https://q4.qlogo.cn/g?b=qq&nk="+strconv.FormatInt(userInfo.Target, 10)+"&s=640").Add("cache", 0),
 					message.Text(
 						"\n",
 						"[", userInfo.Targetname, "]",
@@ -140,7 +140,7 @@ func init() {
 				ctx.SendChain(
 					message.At(uid),
 					message.Text("\n今天你在", userInfo.Updatetime, "被群友"),
-					message.Image("http://q4.qlogo.cn/g?b=qq&nk="+strconv.FormatInt(userInfo.User, 10)+"&s=640").Add("cache", 0),
+					message.Image("https://q4.qlogo.cn/g?b=qq&nk="+strconv.FormatInt(userInfo.User, 10)+"&s=640").Add("cache", 0),
 					message.Text(
 						"\n",
 						"[", userInfo.Username, "]",
@@ -200,7 +200,7 @@ func init() {
 			ctx.SendChain(
 				message.At(uid),
 				message.Text("今天你的群老婆是"),
-				message.Image("http://q4.qlogo.cn/g?b=qq&nk="+strconv.FormatInt(fiancee, 10)+"&s=640").Add("cache", 0),
+				message.Image("https://q4.qlogo.cn/g?b=qq&nk="+strconv.FormatInt(fiancee, 10)+"&s=640").Add("cache", 0),
 				message.Text(
 					"\n",
 					"[", ctx.CardOrNickName(fiancee), "]",
@@ -302,7 +302,7 @@ func init() {
 func (sql *婚姻登记) 查看设置(gid int64) (dbinfo updateinfo, err error) {
 	sql.Lock()
 	defer sql.Unlock()
-	// 创建群表哥
+	// 创建群表格
 	err = sql.db.Create("updateinfo", &updateinfo{})
 	if err != nil {
 		return
@@ -350,7 +350,7 @@ func (sql *婚姻登记) 查户口(gid, uid int64) (info userinfo, err error) {
 	sql.Lock()
 	defer sql.Unlock()
 	gidstr := "group" + strconv.FormatInt(gid, 10)
-	// 创建群表哥
+	// 创建群表格
 	err = sql.db.Create(gidstr, &userinfo{})
 	if err != nil {
 		return

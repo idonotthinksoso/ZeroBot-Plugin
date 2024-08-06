@@ -1,11 +1,15 @@
 package warframeapi
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+
+	"github.com/RomiChan/syncx"
+	"github.com/sirupsen/logrus"
 
 	"github.com/FloatTech/floatbox/web"
 )
@@ -27,7 +31,11 @@ func newwfapi() (w wfapi, err error) {
 // 获取Warframe市场的售价表，并进行排序,cn_name为物品中文名称，onlyMaxRank表示只取最高等级的物品，返回物品售价表，物品信息，物品英文
 func getitemsorder(cnName string, onlyMaxRank bool) (od orders, it *itemsInSet, n string, err error) {
 	var wfapiio wfAPIItemsOrders
-	data, err := web.RequestDataWithHeaders(&http.Client{}, fmt.Sprintf("https://api.warframe.market/v1/items/%s/orders?include=item", cnName), "GET", func(request *http.Request) error {
+	data, err := web.RequestDataWithHeaders(&http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}}, fmt.Sprintf("https://api.warframe.market/v1/items/%s/orders?include=item", cnName), "GET", func(request *http.Request) error {
 		request.Header.Add("Accept", "application/json")
 		request.Header.Add("Platform", "pc")
 		return nil
@@ -68,27 +76,44 @@ func getitemsorder(cnName string, onlyMaxRank bool) (od orders, it *itemsInSet, 
 	return
 }
 
-func newwm() (wmitems map[string]items, itemNames []string) {
-	var itemapi wfAPIItem // WarFrame市场的数据实例
+type wmdata struct {
+	wmitems   map[string]items
+	itemNames []string
+}
 
-	data, err := web.RequestDataWithHeaders(&http.Client{}, wfitemurl, "GET", func(request *http.Request) error {
+var (
+	wderr error
+	wd    = syncx.Lazy[*wmdata]{Init: func() (d *wmdata) {
+		d, wderr = newwm()
+		return
+	}}
+)
+
+func newwm() (*wmdata, error) {
+	var itemapi wfAPIItem // WarFrame市场的数据实例
+	var wd wmdata
+	data, err := web.RequestDataWithHeaders(&http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}}, wfitemurl, "GET", func(request *http.Request) error {
 		request.Header.Add("Accept", "application/json")
 		request.Header.Add("Language", "zh-hans")
 		return nil
 	}, nil)
 	if err != nil {
-		panic(err)
+		return &wd, err
 	}
 	err = json.Unmarshal(data, &itemapi)
 	if err != nil {
-		panic(err)
+		return &wd, err
 	}
-
-	wmitems = make(map[string]items, len(itemapi.Payload.Items)*4)
-	itemNames = make([]string, len(itemapi.Payload.Items))
+	wd.wmitems = make(map[string]items, len(itemapi.Payload.Items)*4)
+	wd.itemNames = make([]string, len(itemapi.Payload.Items))
 	for i, v := range itemapi.Payload.Items {
-		wmitems[v.ItemName] = v
-		itemNames[i] = v.ItemName
+		wd.wmitems[v.ItemName] = v
+		wd.itemNames[i] = v.ItemName
 	}
-	return
+	logrus.Infoln("[wfapi] 获取", len(wd.itemNames), "项内容")
+	return &wd, nil
 }
